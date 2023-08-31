@@ -3,11 +3,17 @@
 
 #include <click/batchelement.hh>
 
-// struct ACANode {
-//     ACANode* son[256];
-//     ACANode* fail;
-//     int count;
-// };
+struct ACANode {
+    ACANode() {
+        memset(son, 0, sizeof(son));
+        fail = nullptr;
+        count = 0;
+    }
+
+    ACANode* son[256];
+    ACANode* fail;
+    int count;
+};
 
 CLICK_DECLS
 
@@ -19,7 +25,7 @@ class OmniStackIDS : public BatchElement {
 
 		const char *class_name() const override    { return "OmniStackIDS"; }
         const char *port_count() const override    { return PORTS_1_1; }
-        // int configure(Vector<String> &conf, ErrorHandler *errh);
+        int configure(Vector<String> &conf, ErrorHandler *errh);
 
         Packet      *simple_action      (Packet *);
     #if HAVE_BATCH
@@ -27,7 +33,9 @@ class OmniStackIDS : public BatchElement {
     #endif
 
     private:
-        // ACANode* root = nullptr;
+        ACANode* root = nullptr;
+
+        void AddPatternString(const String&);
 };
 
 CLICK_ENDDECLS
