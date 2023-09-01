@@ -43,70 +43,74 @@ bool IsMatch(Packet* p, FireWallItem rules[], int rule_size) {
     uint16_t l2_proto = 0;
     uint8_t l3_proto = 0;
 
-    auto ethh = (click_ether*)p->data();
-    l2_proto = ethh->ether_type;
-    switch (l2_proto) {
-        case ETHERTYPE_IP: {
-            auto iph = (click_ip*)(ethh + 1);
-            src_ip = iph->ip_src.s_addr;
-            dst_ip = iph->ip_dst.s_addr;
-            l3_proto = iph->ip_p;
-            switch (l3_proto) {
-                case IPPROTO_TCP: {
-                    auto tcph = (click_tcp*)(iph + 1);
-                    src_port = tcph->th_sport;
-                    dst_port = tcph->th_dport;
-                    break;
-                }
-                case IPPROTO_UDP: {
-                    auto udph = (click_udp*)(iph + 1);
-                    src_port = udph->uh_sport;
-                    dst_port = udph->uh_dport;
-                    break;
-                }
-                default:
-                    return false;
-            }
-            break;
-        }
-        case ETHERTYPE_ARP: {
-            break;
-        }
-    }
-
     for (int i = 0; i < rule_size; i ++) {
         auto& rule = rules[i];
-        if ((rule.src_ipv4 & rule.src_cidr_mask) == (src_ip & rule.src_cidr_mask) &&
-            (rule.dst_ipv4 & rule.dst_cidr_mask) == (dst_ip & rule.dst_cidr_mask) &&
-            (rule.src_port == UINT32_MAX || rule.src_port == src_port) &&
-            (rule.dst_port == UINT32_MAX || rule.dst_port == dst_port)) {
-            
-            bool matched = false;
-            if (!rule.l2_proto_count) {
-                matched = true;
-            } else {
-                for (int j = 0; j < rule.l2_proto_count; j ++) {
-                    if (rule.l2_proto[j] == l2_proto) {
-                        matched = true;
-                        break;
-                    }
-                }
-            }
-            if (!matched) continue;
 
-            matched = false;
-            if (!rule.l3_proto_count) {
-                matched = true;
-            } else {
-                for (int j = 0; j < rule.l3_proto_count; j ++) {
-                    if (rule.l3_proto[j] == l3_proto) {
-                        matched = true;
-                        break;
-                    }
+        auto ethh = (click_ether*)p->data();
+        l2_proto = ethh->ether_type;
+
+        bool matched = false;
+        if (!rule.l2_proto_count) {
+            matched = true;
+        } else {
+            for (int j = 0; j < rule.l2_proto_count; j ++) {
+                if (rule.l2_proto[j] == l2_proto) {
+                    matched = true;
+                    break;
                 }
             }
-            if (!matched) continue;
-            return true;
+        }
+        if (!matched) continue;
+
+        switch (l2_proto) {
+            case ETHERTYPE_IP: {
+                auto iph = (click_ip*)(ethh + 1);
+                src_ip = iph->ip_src.s_addr;
+                dst_ip = iph->ip_dst.s_addr;
+                l3_proto = iph->ip_p;
+
+                matched = false;
+                if (!rule.l3_proto_count) {
+                    matched = true;
+                } else {
+                    for (int j = 0; j < rule.l3_proto_count; j ++) {
+                        if (rule.l3_proto[j] == l3_proto) {
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+                if (!matched) break;
+
+                switch (l3_proto) {
+                    case IPPROTO_TCP: {
+                        auto tcph = (click_tcp*)(iph + 1);
+                        src_port = tcph->th_sport;
+                        dst_port = tcph->th_dport;
+                        break;
+                    }
+                    case IPPROTO_UDP: {
+                        auto udph = (click_udp*)(iph + 1);
+                        src_port = udph->uh_sport;
+                        dst_port = udph->uh_dport;
+                        break;
+                    }
+                    default:
+                        return false;
+                }
+            
+                if ((rule.src_ipv4 & rule.src_cidr_mask) == (src_ip & rule.src_cidr_mask) &&
+                    (rule.dst_ipv4 & rule.dst_cidr_mask) == (dst_ip & rule.dst_cidr_mask) &&
+                    (rule.src_port == UINT32_MAX || rule.src_port == src_port) &&
+                    (rule.dst_port == UINT32_MAX || rule.dst_port == dst_port)) {
+                    return true;
+                }
+
+                break;
+            }
+            case ETHERTYPE_ARP: {
+                break;
+            }
         }
     }
     return false;
